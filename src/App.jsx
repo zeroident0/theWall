@@ -31,6 +31,7 @@ function App() {
   }, []);
 
   const handleWheel = (e) => {
+    if (isPositionSelectMode) return; // Disable zooming in position select mode
     e.preventDefault();
     let newZoom = zoom - e.deltaY * 0.001;
     newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
@@ -48,6 +49,7 @@ function App() {
   };
 
   const handleMouseDown = (e) => {
+    // Allow panning even in position select mode
     if (e.button !== 0) return;
     dragging.current = true;
     lastMouse.current = { x: e.clientX, y: e.clientY };
@@ -108,8 +110,10 @@ function App() {
     if (isPositionSelectMode) {
       // Calculate the correct position on the wall
       const rect = e.currentTarget.getBoundingClientRect();
-      const x = (e.clientX - rect.left - pan.x) / zoom;
-      const y = (e.clientY - rect.top - pan.y) / zoom;
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const x = (e.clientX - centerX - pan.x) / zoom + rect.width / 2;
+      const y = (e.clientY - centerY - pan.y) / zoom + rect.height / 2;
       const calculatedPosition = { x, y };
       setSelectedPosition(calculatedPosition);
       if (imageUploaderRef.current && imageUploaderRef.current.selectImageFile) {
@@ -122,13 +126,16 @@ function App() {
 
   const handlePositionSelectMode = (isActive) => {
     setIsPositionSelectMode(isActive);
-    if (!isActive) {
+    if (isActive) {
+      setZoom(1); // Force zoom to 1
+      setPan({ x: 0, y: 0 }); // Center the wall
+    } else {
       setSelectedPosition(null);
     }
   };
 
-  // Apply transform to the wall, not the app
-  const wallStyle = {
+  // Apply transform to the entire app
+  const appStyle = {
     width: '100vw',
     height: '100vh',
     overflow: 'hidden',
@@ -142,12 +149,12 @@ function App() {
   return (
     <div
       className="app"
-      style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative' }}
+      style={appStyle}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
     >
       {/* Wall Background with Pictures as Children */}
-      <TheWall onClick={handleBackgroundClick} style={wallStyle}>
+      <TheWall onClick={handleBackgroundClick}>
         {pictures.map((picture) => (
           <WallPicture
             key={picture.id}
@@ -160,9 +167,13 @@ function App() {
         ))}
         {/* Pending Image Preview at Marker */}
         {pendingImage && pendingImage.position && (() => {
-          let screenX = pendingImage.position.x;
-          let screenY = pendingImage.position.y;
+          let screenX = 0;
+          let screenY = 0;
           const imgSize = 100; // preview size
+          const viewportCenterX = window.innerWidth / 2;
+          const viewportCenterY = window.innerHeight / 2;
+          screenX = viewportCenterX + pan.x + pendingImage.position.x * zoom;
+          screenY = viewportCenterY + pan.y + pendingImage.position.y * zoom;
           return (
             <img
               src={pendingImage.url}
@@ -170,7 +181,7 @@ function App() {
               style={{
                 left: screenX - imgSize / 2,
                 top: screenY - imgSize / 2,
-                position: 'absolute',
+                position: 'fixed',
                 zIndex: 201,
                 width: imgSize,
                 height: imgSize,
@@ -184,7 +195,7 @@ function App() {
           );
         })()}
         {/* Position Marker as a wall child */}
-        <WallMarker selectedPosition={selectedPosition} />
+        <WallMarker selectedPosition={selectedPosition} pan={pan} zoom={zoom} />
       </TheWall>
       {/* Portals for UI overlays */}
       {createPortal(

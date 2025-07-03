@@ -1,11 +1,11 @@
 import React from 'react';
 
-const WallMarker = ({ selectedPosition, markerSize = 30 }) => {
+const WallMarker = ({ selectedPosition, markerSize = 30, pan = { x: 0, y: 0 }, zoom = 1 }) => {
     if (!selectedPosition) return null;
 
-    // Use wall coordinates directly
-    const screenX = selectedPosition.x;
-    const screenY = selectedPosition.y;
+    // Calculate marker position in wall coordinates, then apply pan and zoom
+    const x = selectedPosition.x * zoom + pan.x;
+    const y = selectedPosition.y * zoom + pan.y;
 
     return (
         <div
@@ -14,8 +14,8 @@ const WallMarker = ({ selectedPosition, markerSize = 30 }) => {
                 position: 'absolute',
                 zIndex: 202,
                 pointerEvents: 'none',
-                left: screenX - markerSize / 2,
-                top: screenY - markerSize / 2,
+                left: x - markerSize / 2,
+                top: y - markerSize / 2,
                 width: markerSize,
                 height: markerSize,
                 display: 'flex',

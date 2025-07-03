@@ -5,10 +5,9 @@ const TheWall = forwardRef((props, ref) => {
     return (
         <div
             ref={ref}
+            className="wall-container"
             style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
+                position: 'relative',
                 width: '100vw',
                 height: '100vh',
                 backgroundImage: `url(${wallImage})`,

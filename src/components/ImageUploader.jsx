@@ -20,6 +20,14 @@ const ImageUploader = forwardRef(({ onImageUploaded, onPositionSelectMode }, ref
                 // Trigger file selection
                 fileInputRef.current?.click();
             }
+        },
+        resetState: () => {
+            setIsPositionSelectMode(false);
+            setSelectedPosition(null);
+            setIsUploading(false);
+            setUploadProgress(0);
+            setIsDragging(false);
+            console.log('🔄 ImageUploader state reset');
         }
     }));
 
@@ -156,10 +164,10 @@ const ImageUploader = forwardRef(({ onImageUploaded, onPositionSelectMode }, ref
                     +
                 </button>
             )}
-            {/* Upload area only shown for drag/drop, uploading, or position select mode */}
-            {(isDragging || isUploading || isPositionSelectMode) && (
+            {/* Upload area only shown for drag/drop or uploading (not for position select mode) */}
+            {(isDragging || isUploading) && (
                 <div
-                    className={`upload-area ${isDragging ? 'dragging' : ''} ${isUploading ? 'uploading' : ''} ${isPositionSelectMode ? 'position-select-mode' : ''}`}
+                    className={`upload-area ${isDragging ? 'dragging' : ''} ${isUploading ? 'uploading' : ''}`}
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
@@ -174,17 +182,6 @@ const ImageUploader = forwardRef(({ onImageUploaded, onPositionSelectMode }, ref
                             </div>
                             <p>Uploading... {Math.round(uploadProgress)}%</p>
                         </div>
-                    ) : isPositionSelectMode ? (
-                        <>
-                            <div className="upload-icon">🎯</div>
-                            <p>Click on the wall to choose position</p>
-                            <p className="upload-hint">
-                                {selectedPosition
-                                    ? `Position selected: (${selectedPosition.x.toFixed(0)}, ${selectedPosition.y.toFixed(0)})`
-                                    : 'Then select your image file'
-                                }
-                            </p>
-                        </>
                     ) : null}
                 </div>
             )}

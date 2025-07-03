@@ -93,7 +93,7 @@ const WallPicture = ({ image, onPositionChange, onDelete, wallZoom = 1, wallPosi
                 onLoad={e => {
                     // Calculate scaled size while maintaining aspect ratio
                     const { naturalWidth, naturalHeight } = e.target;
-                    const maxSize = 100; // Target size
+                    const maxSize = 60; // Target size (was 100)
 
                     let scaledWidth, scaledHeight;
                     if (naturalWidth > naturalHeight) {

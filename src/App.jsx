@@ -8,6 +8,7 @@ import TheWall from './components/theWall'
 import WallMarker from './components/WallMarker'
 import ImageUploadUI from './components/ImageUploadUI';
 import PictureCounter from './components/PictureCounter';
+import PositionWarning from './components/PositionWarning';
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3;
@@ -17,16 +18,24 @@ function App() {
   const [selectedPictureId, setSelectedPictureId] = useState(null);
   const [isPositionSelectMode, setIsPositionSelectMode] = useState(false);
   const [selectedPosition, setSelectedPosition] = useState(null);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const dragging = useRef(false);
-  const lastMouse = useRef({ x: 0, y: 0 });
   const imageUploaderRef = useRef(null);
   const [pendingImage, setPendingImage] = useState(null);
   const appRef = useRef(null);
-  const lastTouch = useRef({ x: 0, y: 0 });
-  const lastTouchDistance = useRef(null);
-  const lastTouchMidpoint = useRef(null);
+  const wallRef = useRef(null);
+  const [wallSize, setWallSize] = useState({ width: 1200, height: window.innerHeight });
+
+  useEffect(() => {
+    // Update wall size on mount and resize
+    function updateWallSize() {
+      if (wallRef.current) {
+        const rect = wallRef.current.getBoundingClientRect();
+        setWallSize({ width: rect.width, height: rect.height });
+      }
+    }
+    updateWallSize();
+    window.addEventListener('resize', updateWallSize);
+    return () => window.removeEventListener('resize', updateWallSize);
+  }, []);
 
   // Load saved pictures on component mount
   useEffect(() => {
@@ -43,61 +52,6 @@ function App() {
     const unsubscribe = subscribeToPictures(setPictures);
     return () => unsubscribe();
   }, []);
-
-  useEffect(() => {
-    const appElem = appRef.current;
-    if (!appElem) return;
-    const handleWheelWrapper = (e) => handleWheel(e);
-    appElem.addEventListener('wheel', handleWheelWrapper, { passive: false });
-    return () => {
-      appElem.removeEventListener('wheel', handleWheelWrapper);
-    };
-  }, [zoom, pan, isPositionSelectMode]);
-
-  const handleWheel = (e) => {
-    if (isPositionSelectMode) return; // Disable zooming in position select mode
-    e.preventDefault();
-    let newZoom = zoom - e.deltaY * 0.001;
-    newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
-    if (newZoom === zoom) return;
-    // Zoom to mouse position
-    const rect = e.currentTarget.getBoundingClientRect();
-    const mouseX = e.clientX - (rect.left + rect.width / 2) - pan.x;
-    const mouseY = e.clientY - (rect.top + rect.height / 2) - pan.y;
-    const scale = newZoom / zoom;
-    setPan(prev => ({
-      x: prev.x - mouseX * (scale - 1),
-      y: prev.y - mouseY * (scale - 1)
-    }));
-    setZoom(newZoom);
-  };
-
-  const handleMouseDown = (e) => {
-    if (isPositionSelectMode) return; // Lock panning in position select mode
-    if (e.button !== 0) return;
-    dragging.current = true;
-    lastMouse.current = { x: e.clientX, y: e.clientY };
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-  };
-  const handleMouseMove = (e) => {
-    if (!dragging.current) return;
-    const dx = e.clientX - lastMouse.current.x;
-    const dy = e.clientY - lastMouse.current.y;
-    lastMouse.current = { x: e.clientX, y: e.clientY };
-    setPan(prev => limitPan({ x: prev.x + dx, y: prev.y + dy }));
-  };
-  const handleMouseUp = () => {
-    dragging.current = false;
-    window.removeEventListener('mousemove', handleMouseMove);
-    window.removeEventListener('mouseup', handleMouseUp);
-  };
-
-  const limitPan = (pan) => {
-    // Limit panning so the app cannot be dragged beyond its edges
-    // For simplicity, allow free panning, or you can add limits based on content size
-    return pan;
-  };
 
   const handleImageUploaded = async (newImage) => {
     setPendingImage(newImage);
@@ -133,8 +87,8 @@ function App() {
       const rect = e.currentTarget.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
-      const x = (e.clientX - centerX - pan.x) / zoom + rect.width / 2;
-      const y = (e.clientY - centerY - pan.y) / zoom + rect.height / 2;
+      const x = (e.clientX - centerX) / rect.width;
+      const y = (e.clientY - centerY) / rect.height;
       const calculatedPosition = { x, y };
       setSelectedPosition(calculatedPosition);
       if (imageUploaderRef.current && imageUploaderRef.current.selectImageFile) {
@@ -148,122 +102,39 @@ function App() {
   const handlePositionSelectMode = (isActive) => {
     setIsPositionSelectMode(isActive);
     if (isActive) {
-      setZoom(1); // Force zoom to 1
-      setPan({ x: 0, y: 0 }); // Center the wall
-    } else {
       setSelectedPosition(null);
     }
   };
 
-  // Touch event handlers for mobile panning and pinch-zoom
-  const handleTouchStart = (e) => {
-    if (isPositionSelectMode) return; // Lock touch panning/zoom in position select mode
-    if (e.touches.length === 1) {
-      // Single finger: start panning
-      dragging.current = true;
-      lastTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    } else if (e.touches.length === 2) {
-      // Two fingers: start pinch-zoom
-      lastTouchDistance.current = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      lastTouchMidpoint.current = {
-        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
-        y: (e.touches[0].clientY + e.touches[1].clientY) / 2
-      };
-    }
-  };
+  // Convert normalized position to pixel position for marker
+  let markerPixelPosition = null;
+  if (selectedPosition && wallSize) {
+    markerPixelPosition = {
+      x: wallSize.width / 2 + selectedPosition.x * wallSize.width,
+      y: wallSize.height / 2 + selectedPosition.y * wallSize.height,
+    };
+  }
 
-  const handleTouchMove = (e) => {
-    if (isPositionSelectMode) return; // Lock touch panning/zoom in position select mode
-    if (e.touches.length === 1 && dragging.current) {
-      // Single finger: panning
-      const dx = e.touches[0].clientX - lastTouch.current.x;
-      const dy = e.touches[0].clientY - lastTouch.current.y;
-      lastTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      setPan(prev => limitPan({ x: prev.x + dx, y: prev.y + dy }));
-      e.preventDefault();
-    } else if (e.touches.length === 2) {
-      // Two fingers: pinch-zoom
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      const midpoint = {
-        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
-        y: (e.touches[0].clientY + e.touches[1].clientY) / 2
-      };
-      if (lastTouchDistance.current) {
-        let scale = dist / lastTouchDistance.current;
-        let newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * scale));
-        // Adjust pan so zoom centers on pinch midpoint
-        const rect = appRef.current.getBoundingClientRect();
-        const mouseX = midpoint.x - (rect.left + rect.width / 2) - pan.x;
-        const mouseY = midpoint.y - (rect.top + rect.height / 2) - pan.y;
-        const zoomScale = newZoom / zoom;
-        setPan(prev => ({
-          x: prev.x - mouseX * (zoomScale - 1),
-          y: prev.y - mouseY * (zoomScale - 1)
-        }));
-        setZoom(newZoom);
-      }
-      lastTouchDistance.current = dist;
-      lastTouchMidpoint.current = midpoint;
-      e.preventDefault();
-    }
-  };
-
-  const handleTouchEnd = (e) => {
-    if (e.touches.length === 0) {
-      dragging.current = false;
-      lastTouchDistance.current = null;
-      lastTouchMidpoint.current = null;
-    } else if (e.touches.length === 1) {
-      // If one finger remains, start panning from its position
-      lastTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      lastTouchDistance.current = null;
-      lastTouchMidpoint.current = null;
-    }
-  };
-
-  // Apply transform to the entire app
+  // Remove transform from appStyle
   const appStyle = {
     width: '100vw',
     height: '100vh',
     overflow: 'hidden',
     position: 'relative',
-    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-    transformOrigin: 'center',
-    transition: dragging.current ? 'none' : 'transform 0.2s',
-    cursor: isPositionSelectMode ? 'crosshair' : (dragging.current ? 'grabbing' : 'grab'),
+    cursor: isPositionSelectMode ? 'crosshair' : 'default',
   };
-
-  useEffect(() => {
-    const appElem = appRef.current;
-    if (!appElem) return;
-    // Attach touch event listeners with passive: false
-    appElem.addEventListener('touchstart', handleTouchStart, { passive: false });
-    appElem.addEventListener('touchmove', handleTouchMove, { passive: false });
-    appElem.addEventListener('touchend', handleTouchEnd, { passive: false });
-    appElem.addEventListener('touchcancel', handleTouchEnd, { passive: false });
-    return () => {
-      appElem.removeEventListener('touchstart', handleTouchStart);
-      appElem.removeEventListener('touchmove', handleTouchMove);
-      appElem.removeEventListener('touchend', handleTouchEnd);
-      appElem.removeEventListener('touchcancel', handleTouchEnd);
-    };
-  }, [zoom, pan, isPositionSelectMode]);
 
   return (
     <div
       ref={appRef}
       className="app"
       style={appStyle}
-      onMouseDown={handleMouseDown}
     >
       {/* Wall Background with Pictures as Children */}
-      <TheWall onClick={handleBackgroundClick}>
+      <TheWall
+        ref={wallRef}
+        onClick={handleBackgroundClick}
+      >
         {pictures.map((picture) => (
           <WallPicture
             key={picture.id}
@@ -274,15 +145,11 @@ function App() {
             onSelect={handleSelectPicture}
           />
         ))}
-        {/* Pending Image Preew at Marker */}
+        {/* Pending Image Preview at Marker */}
         {pendingImage && pendingImage.position && (() => {
-          let screenX = 0;
-          let screenY = 0;
-          const imgSize = 100; // preview size
-          const viewportCenterX = window.innerWidth / 2;
-          const viewportCenterY = window.innerHeight / 2;
-          screenX = viewportCenterX + pan.x + pendingImage.position.x * zoom;
-          screenY = viewportCenterY + pan.y + pendingImage.position.y * zoom;
+          let screenX = pendingImage.position.x;
+          let screenY = pendingImage.position.y;
+          const imgSize = 60; // preview size
           return (
             <img
               src={pendingImage.url}
@@ -290,7 +157,7 @@ function App() {
               style={{
                 left: screenX - imgSize / 2,
                 top: screenY - imgSize / 2,
-                position: 'fixed',
+                position: 'absolute',
                 zIndex: 201,
                 width: imgSize,
                 height: imgSize,
@@ -304,7 +171,7 @@ function App() {
           );
         })()}
         {/* Position Marker as a wall child */}
-        <WallMarker selectedPosition={selectedPosition} pan={pan} zoom={zoom} />
+        <WallMarker selectedPosition={markerPixelPosition} />
       </TheWall>
       {/* Portals for UI overlays */}
       {createPortal(
@@ -317,6 +184,19 @@ function App() {
       )}
       {createPortal(
         <PictureCounter count={pictures.length} />, document.body
+      )}
+      {createPortal(
+        <PositionWarning
+          isVisible={isPositionSelectMode}
+          onCancel={() => {
+            handlePositionSelectMode(false);
+            // Reset the ImageUploader state to show the upload button again
+            if (imageUploaderRef.current && imageUploaderRef.current.resetState) {
+              imageUploaderRef.current.resetState();
+            }
+          }}
+        />,
+        document.body
       )}
     </div>
   )

@@ -24,6 +24,9 @@ function App() {
   const imageUploaderRef = useRef(null);
   const [pendingImage, setPendingImage] = useState(null);
   const appRef = useRef(null);
+  const lastTouch = useRef({ x: 0, y: 0 });
+  const lastTouchDistance = useRef(null);
+  const lastTouchMidpoint = useRef(null);
 
   // Load saved pictures on component mount
   useEffect(() => {
@@ -155,6 +158,76 @@ function App() {
     }
   };
 
+  // Touch event handlers for mobile panning and pinch-zoom
+  const handleTouchStart = (e) => {
+    if (e.touches.length === 1) {
+      // Single finger: start panning
+      dragging.current = true;
+      lastTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    } else if (e.touches.length === 2) {
+      // Two fingers: start pinch-zoom
+      lastTouchDistance.current = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      lastTouchMidpoint.current = {
+        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+      };
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (e.touches.length === 1 && dragging.current) {
+      // Single finger: panning
+      const dx = e.touches[0].clientX - lastTouch.current.x;
+      const dy = e.touches[0].clientY - lastTouch.current.y;
+      lastTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      setPan(prev => limitPan({ x: prev.x + dx, y: prev.y + dy }));
+      e.preventDefault();
+    } else if (e.touches.length === 2) {
+      // Two fingers: pinch-zoom
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const midpoint = {
+        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+      };
+      if (lastTouchDistance.current) {
+        let scale = dist / lastTouchDistance.current;
+        let newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * scale));
+        // Adjust pan so zoom centers on pinch midpoint
+        const rect = appRef.current.getBoundingClientRect();
+        const mouseX = midpoint.x - (rect.left + rect.width / 2) - pan.x;
+        const mouseY = midpoint.y - (rect.top + rect.height / 2) - pan.y;
+        const zoomScale = newZoom / zoom;
+        setPan(prev => ({
+          x: prev.x - mouseX * (zoomScale - 1),
+          y: prev.y - mouseY * (zoomScale - 1)
+        }));
+        setZoom(newZoom);
+      }
+      lastTouchDistance.current = dist;
+      lastTouchMidpoint.current = midpoint;
+      e.preventDefault();
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    if (e.touches.length === 0) {
+      dragging.current = false;
+      lastTouchDistance.current = null;
+      lastTouchMidpoint.current = null;
+    } else if (e.touches.length === 1) {
+      // If one finger remains, start panning from its position
+      lastTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      lastTouchDistance.current = null;
+      lastTouchMidpoint.current = null;
+    }
+  };
+
   // Apply transform to the entire app
   const appStyle = {
     width: '100vw',
@@ -166,6 +239,22 @@ function App() {
     transition: dragging.current ? 'none' : 'transform 0.2s',
     cursor: dragging.current ? 'grabbing' : 'grab',
   };
+
+  useEffect(() => {
+    const appElem = appRef.current;
+    if (!appElem) return;
+    // Attach touch event listeners with passive: false
+    appElem.addEventListener('touchstart', handleTouchStart, { passive: false });
+    appElem.addEventListener('touchmove', handleTouchMove, { passive: false });
+    appElem.addEventListener('touchend', handleTouchEnd, { passive: false });
+    appElem.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+    return () => {
+      appElem.removeEventListener('touchstart', handleTouchStart);
+      appElem.removeEventListener('touchmove', handleTouchMove);
+      appElem.removeEventListener('touchend', handleTouchEnd);
+      appElem.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, [zoom, pan, isPositionSelectMode]);
 
   return (
     <div

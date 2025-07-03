@@ -9,6 +9,8 @@ import WallMarker from './components/WallMarker'
 import ImageUploadUI from './components/ImageUploadUI';
 import PictureCounter from './components/PictureCounter';
 import PositionWarning from './components/PositionWarning';
+import UploadLimitDisplay from './components/UploadLimitDisplay';
+import { toggleInfinityMode, getUserUploadStats } from './services/limitService';
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3;
@@ -48,16 +50,66 @@ function App() {
         console.error('Failed to delete all images:', err);
       }
     };
+
+    // Expose infinity mode functions for debugging
+    window.enableInfinityUploads = (password) => {
+      const success = toggleInfinityMode(password);
+      if (success) {
+        console.log('🔓 Infinity uploads enabled! Refresh the page to see changes.');
+        // Force refresh to update UI
+        window.location.reload();
+      } else {
+        console.log('❌ Invalid password for infinity mode');
+      }
+      return success;
+    };
+
+    window.disableInfinityUploads = () => {
+      sessionStorage.removeItem('infinityMode');
+      console.log('🔒 Infinity uploads disabled! Refresh the page to see changes.');
+      window.location.reload();
+    };
+
+    window.getUploadStats = async () => {
+      const stats = await getUserUploadStats();
+      console.log('📊 Current upload stats:', stats);
+      return stats;
+    };
+
+    // Usage examples:
+    console.log('🔧 Debug commands available:');
+    console.log('  window.enableInfinityUploads("your_password") - Enable infinite uploads');
+    console.log('  window.disableInfinityUploads() - Disable infinite uploads');
+    console.log('  window.getUploadStats() - Get current upload statistics');
+    console.log('  window.deleteAllImages("admin_password") - Delete all images');
+
     // Usage: window.deleteAllImages('your_admin_password')
     const unsubscribe = subscribeToPictures(setPictures);
     return () => unsubscribe();
   }, []);
 
   const handleImageUploaded = async (newImage) => {
-    setPendingImage(newImage);
-    await addPicture(newImage);
-    setSelectedPictureId(newImage.id);
-    setSelectedPosition(null);
+    try {
+      setPendingImage(newImage);
+      await addPicture(newImage);
+      setSelectedPictureId(newImage.id);
+      setSelectedPosition(null);
+
+      // Refresh the upload limit display
+      if (imageUploaderRef.current && imageUploaderRef.current.refreshLimit) {
+        imageUploaderRef.current.refreshLimit();
+      }
+    } catch (error) {
+      console.error('Error adding picture:', error);
+      setPendingImage(null);
+
+      // If it's a limit error, show the message
+      if (error.message && error.message.includes('Daily upload limit reached')) {
+        alert(error.message);
+      } else {
+        alert('Failed to add picture to the wall. Please try again.');
+      }
+    }
   };
 
   useEffect(() => {
@@ -110,8 +162,8 @@ function App() {
   let markerPixelPosition = null;
   if (selectedPosition && wallSize) {
     markerPixelPosition = {
-      x: wallSize.width / 2 + selectedPosition.x * wallSize.width,
-      y: wallSize.height / 2 + selectedPosition.y * wallSize.height,
+      x: 600 + selectedPosition.x * 1200, // 1200px wall width, center at 600
+      y: window.innerHeight / 2 + selectedPosition.y * window.innerHeight, // Wall height, center at half height
     };
   }
 
@@ -146,17 +198,18 @@ function App() {
           />
         ))}
         {/* Pending Image Preview at Marker */}
-        {pendingImage && pendingImage.position && (() => {
-          let screenX = pendingImage.position.x;
-          let screenY = pendingImage.position.y;
+        {pendingImage && selectedPosition && (() => {
+          // Convert normalized position to pixel position (same logic as marker)
           const imgSize = 60; // preview size
+          const pixelX = 600 + selectedPosition.x * 1200; // 1200px wall width, center at 600
+          const pixelY = window.innerHeight / 2 + selectedPosition.y * window.innerHeight; // Wall height, center at half height
           return (
             <img
               src={pendingImage.url}
               alt="Uploading..."
               style={{
-                left: screenX - imgSize / 2,
-                top: screenY - imgSize / 2,
+                left: pixelX - imgSize / 2,
+                top: pixelY - imgSize / 2,
                 position: 'absolute',
                 zIndex: 201,
                 width: imgSize,
@@ -181,6 +234,9 @@ function App() {
           onPositionSelectMode={handlePositionSelectMode}
         />,
         document.body
+      )}
+      {createPortal(
+        <UploadLimitDisplay />, document.body
       )}
       {createPortal(
         <PictureCounter count={pictures.length} />, document.body

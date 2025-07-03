@@ -141,6 +141,7 @@
     }
 }
 
+/* Random rotations for vintage look - positioning is now fixed so this won't affect actual positions */
 .wall-picture:nth-child(5n+1) {
     transform: rotate(-2deg);
 }

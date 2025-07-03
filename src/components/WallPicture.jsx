@@ -5,7 +5,7 @@ const WallPicture = ({ image, onPositionChange, onDelete, wallZoom = 1, wallPosi
     const [isDragging, setIsDragging] = useState(false);
     const [position, setPosition] = useState(image.position || { x: 0, y: 0 });
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-    const [size, setSize] = useState({ width: 100, height: 100 });
+    const [size, setSize] = useState({ width: 60, height: 60 }); // Fixed default size
     const [imageLoaded, setImageLoaded] = useState(false);
     const pictureRef = useRef(null);
 
@@ -13,14 +13,6 @@ const WallPicture = ({ image, onPositionChange, onDelete, wallZoom = 1, wallPosi
         setPosition(image.position || { x: 0, y: 0 });
         console.log('🖼️ WallPicture position updated:', image.position);
     }, [image]);
-
-    // Ensure image is centered on the mark after it loads (when size is known)
-    useEffect(() => {
-        if (pictureRef.current && image.position && imageLoaded) {
-            // Force a re-render by updating state if needed
-            setPosition(image.position);
-        }
-    }, [size.width, size.height, image.position, imageLoaded]);
 
     const handleMouseDown = (e) => {
         e.stopPropagation();
@@ -40,35 +32,23 @@ const WallPicture = ({ image, onPositionChange, onDelete, wallZoom = 1, wallPosi
         console.log('🗑️ Delete functionality is disabled');
     };
 
-    const handleImageLoad = (e) => {
-        // No dynamic sizing; use fixed size
-    };
-
-    // Calculate the actual position on the wall
-    // The wall's center is at (0,0) in wall coordinates
-    // We need to position relative to the wall's center
-    const wallCenterX = 0; // Wall coordinate system center
-    const wallCenterY = 0; // Wall coordinate system center
-
-    // Position relative to wall center, adjusted for picture size
-    const actualLeft = wallCenterX + position.x - size.width / 2;
-    const actualTop = wallCenterY + position.y - size.height / 2;
+    // Convert normalized position to pixel position (same as marker logic)
+    const pixelX = 600 + position.x * 1200; // 1200px wall width, center at 600
+    const pixelY = window.innerHeight / 2 + position.y * window.innerHeight; // Wall height, center at half height
 
     return (
         <div
             ref={pictureRef}
             className="wall-picture"
             style={{
-                left: actualLeft,
-                top: actualTop,
+                left: pixelX - size.width / 2,
+                top: pixelY - size.height / 2,
                 width: size.width,
                 height: size.height,
                 cursor: 'default',
                 position: 'absolute',
                 zIndex: 100,
-                // Add transform-origin center so the picture centers on the clicked point
                 transformOrigin: 'center',
-                // Prevent text selection and blue highlight
                 userSelect: 'none',
                 WebkitUserSelect: 'none',
                 MozUserSelect: 'none',
@@ -84,7 +64,6 @@ const WallPicture = ({ image, onPositionChange, onDelete, wallZoom = 1, wallPosi
                     width: '100%',
                     height: '100%',
                     objectFit: 'contain',
-                    // Prevent text selection on image as well
                     userSelect: 'none',
                     WebkitUserSelect: 'none',
                     MozUserSelect: 'none',
@@ -93,7 +72,7 @@ const WallPicture = ({ image, onPositionChange, onDelete, wallZoom = 1, wallPosi
                 onLoad={e => {
                     // Calculate scaled size while maintaining aspect ratio
                     const { naturalWidth, naturalHeight } = e.target;
-                    const maxSize = 60; // Target size (was 100)
+                    const maxSize = 60; // Fixed target size
 
                     let scaledWidth, scaledHeight;
                     if (naturalWidth > naturalHeight) {

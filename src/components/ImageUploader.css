@@ -177,3 +177,18 @@
     background: #fafafaa4;
     color: #111;
 }
+
+.upload-plus-btn.disabled {
+    background: rgba(255, 107, 107, 0.8);
+    color: #fff;
+    border-color: rgba(255, 107, 107, 0.5);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.upload-plus-btn.disabled:hover {
+    background: rgba(255, 107, 107, 0.9);
+    border-color: rgba(255, 107, 107, 0.6);
+    box-shadow: 0 2px 8px rgba(255, 107, 107, 0.2);
+    color: #fff;
+}

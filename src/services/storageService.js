@@ -1,5 +1,6 @@
 import { db } from '../config/firestore';
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, getDocs, writeBatch } from 'firebase/firestore';
+import { canUserUpload, recordUpload } from './limitService';
 
 const imagesCollection = collection(db, 'images');
 
@@ -14,9 +15,21 @@ export function subscribeToPictures(callback) {
     });
 }
 
-// Add a new picture
+// Add a new picture with upload limit check
 export async function addPicture(picture) {
+    // Check if user can upload
+    const limitCheck = await canUserUpload();
+
+    if (!limitCheck.canUpload) {
+        throw new Error('Daily upload limit reached. You can upload 3 more pictures tomorrow.');
+    }
+
+    // Add the picture to Firestore
     const docRef = await addDoc(imagesCollection, picture);
+
+    // Record the upload for limit tracking
+    await recordUpload();
+
     return docRef.id;
 }
 

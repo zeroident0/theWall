@@ -73,7 +73,7 @@ function App() {
   };
 
   const handleMouseDown = (e) => {
-    // Allow panning even in position select mode
+    if (isPositionSelectMode) return; // Lock panning in position select mode
     if (e.button !== 0) return;
     dragging.current = true;
     lastMouse.current = { x: e.clientX, y: e.clientY };
@@ -157,6 +157,7 @@ function App() {
 
   // Touch event handlers for mobile panning and pinch-zoom
   const handleTouchStart = (e) => {
+    if (isPositionSelectMode) return; // Lock touch panning/zoom in position select mode
     if (e.touches.length === 1) {
       // Single finger: start panning
       dragging.current = true;
@@ -175,6 +176,7 @@ function App() {
   };
 
   const handleTouchMove = (e) => {
+    if (isPositionSelectMode) return; // Lock touch panning/zoom in position select mode
     if (e.touches.length === 1 && dragging.current) {
       // Single finger: panning
       const dx = e.touches[0].clientX - lastTouch.current.x;
@@ -234,7 +236,7 @@ function App() {
     transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
     transformOrigin: 'center',
     transition: dragging.current ? 'none' : 'transform 0.2s',
-    cursor: dragging.current ? 'grabbing' : 'grab',
+    cursor: isPositionSelectMode ? 'crosshair' : (dragging.current ? 'grabbing' : 'grab'),
   };
 
   useEffect(() => {
@@ -272,7 +274,7 @@ function App() {
             onSelect={handleSelectPicture}
           />
         ))}
-        {/* Pending Image Preview at Marker */}
+        {/* Pending Image Preew at Marker */}
         {pendingImage && pendingImage.position && (() => {
           let screenX = 0;
           let screenY = 0;

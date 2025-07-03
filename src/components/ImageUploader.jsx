@@ -145,43 +145,49 @@ const ImageUploader = forwardRef(({ onImageUploaded, onPositionSelectMode }, ref
 
     return (
         <div className="image-uploader">
-            <div
-                className={`upload-area ${isDragging ? 'dragging' : ''} ${isUploading ? 'uploading' : ''} ${isPositionSelectMode ? 'position-select-mode' : ''}`}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={handleUploaderClick}
-            >
-                {isUploading ? (
-                    <div className="upload-progress">
-                        <div className="progress-bar">
-                            <div
-                                className="progress-fill"
-                                style={{ width: `${uploadProgress}%` }}
-                            ></div>
+            {/* Plus button at top right */}
+            {!isPositionSelectMode && !isUploading && (
+                <button
+                    className="upload-plus-btn"
+                    onClick={handleUploaderClick}
+                    title="Add image to wall"
+                    type="button"
+                >
+                    +
+                </button>
+            )}
+            {/* Upload area only shown for drag/drop, uploading, or position select mode */}
+            {(isDragging || isUploading || isPositionSelectMode) && (
+                <div
+                    className={`upload-area ${isDragging ? 'dragging' : ''} ${isUploading ? 'uploading' : ''} ${isPositionSelectMode ? 'position-select-mode' : ''}`}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                >
+                    {isUploading ? (
+                        <div className="upload-progress">
+                            <div className="progress-bar">
+                                <div
+                                    className="progress-fill"
+                                    style={{ width: `${uploadProgress}%` }}
+                                ></div>
+                            </div>
+                            <p>Uploading... {Math.round(uploadProgress)}%</p>
                         </div>
-                        <p>Uploading... {Math.round(uploadProgress)}%</p>
-                    </div>
-                ) : isPositionSelectMode ? (
-                    <>
-                        <div className="upload-icon">🎯</div>
-                        <p>Click on the wall to choose position</p>
-                        <p className="upload-hint">
-                            {selectedPosition
-                                ? `Position selected: (${selectedPosition.x.toFixed(0)}, ${selectedPosition.y.toFixed(0)})`
-                                : 'Then select your image file'
-                            }
-                        </p>
-                    </>
-                ) : (
-                    <>
-                        <div className="upload-icon">📷</div>
-                        <p>Click to add image to wall</p>
-                        <p className="upload-hint">Choose position first, then select file</p>
-                    </>
-                )}
-            </div>
-
+                    ) : isPositionSelectMode ? (
+                        <>
+                            <div className="upload-icon">🎯</div>
+                            <p>Click on the wall to choose position</p>
+                            <p className="upload-hint">
+                                {selectedPosition
+                                    ? `Position selected: (${selectedPosition.x.toFixed(0)}, ${selectedPosition.y.toFixed(0)})`
+                                    : 'Then select your image file'
+                                }
+                            </p>
+                        </>
+                    ) : null}
+                </div>
+            )}
             <input
                 ref={fileInputRef}
                 type="file"

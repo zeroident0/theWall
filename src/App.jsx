@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import './App.css'
 import ImageUploader from './components/ImageUploader'
 import WallPicture from './components/WallPicture'
-import { loadPictures, addPicture, updatePicturePosition, deletePicture, deleteAllImagesAndClear } from './services/storageService'
+import { loadPictures, addPicture, updatePicturePosition, deletePicture, deleteAllImagesAndClear, subscribeToPictures } from './services/storageService'
 import TheWall from './components/theWall'
 import WallMarker from './components/WallMarker'
 import ImageUploadUI from './components/ImageUploadUI';
@@ -40,8 +40,8 @@ function App() {
       }
     };
     // Usage: window.deleteAllImages('your_admin_password')
-    const savedPictures = loadPictures();
-    setPictures(savedPictures);
+    const unsubscribe = subscribeToPictures(setPictures);
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -99,10 +99,9 @@ function App() {
     return pan;
   };
 
-  const handleImageUploaded = (newImage) => {
+  const handleImageUploaded = async (newImage) => {
     setPendingImage(newImage);
-    const updatedPictures = addPicture(newImage);
-    setPictures(updatedPictures);
+    await addPicture(newImage);
     setSelectedPictureId(newImage.id);
     setSelectedPosition(null);
   };
@@ -113,14 +112,12 @@ function App() {
     }
   }, [pictures, pendingImage]);
 
-  const handlePositionChange = (pictureId, newPosition) => {
-    const updatedPictures = updatePicturePosition(pictureId, newPosition);
-    setPictures(updatedPictures);
+  const handlePositionChange = async (pictureId, newPosition) => {
+    await updatePicturePosition(pictureId, newPosition);
   };
 
-  const handleDeletePicture = (pictureId) => {
-    const updatedPictures = deletePicture(pictureId);
-    setPictures(updatedPictures);
+  const handleDeletePicture = async (pictureId) => {
+    await deletePicture(pictureId);
     if (selectedPictureId === pictureId) {
       setSelectedPictureId(null);
     }
@@ -323,4 +320,4 @@ function App() {
   )
 }
 
-export default App
+export default App;

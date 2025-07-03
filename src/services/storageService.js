@@ -1,69 +1,52 @@
-import { deleteAllImages } from './cloudinaryService';
+import { db } from '../config/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, getDocs, writeBatch } from 'firebase/firestore';
 
-const STORAGE_KEY = 'thewall_pictures';
+const imagesCollection = collection(db, 'images');
 
-// Save pictures to localStorage
-export const savePictures = (pictures) => {
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(pictures));
-        return true;
-    } catch (error) {
-        console.error('Failed to save pictures to localStorage:', error);
-        return false;
-    }
-};
-
-// Load pictures from localStorage
-export const loadPictures = () => {
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        return stored ? JSON.parse(stored) : [];
-    } catch (error) {
-        console.error('Failed to load pictures from localStorage:', error);
-        return [];
-    }
-};
+// Real-time subscription to images
+export function subscribeToPictures(callback) {
+    return onSnapshot(imagesCollection, (snapshot) => {
+        const pictures = snapshot.docs.map(docSnap => ({
+            id: docSnap.id,
+            ...docSnap.data()
+        }));
+        callback(pictures);
+    });
+}
 
 // Add a new picture
-export const addPicture = (picture) => {
-    const pictures = loadPictures();
-    pictures.push(picture);
-    savePictures(pictures);
-    return pictures;
-};
+export async function addPicture(picture) {
+    const docRef = await addDoc(imagesCollection, picture);
+    return docRef.id;
+}
 
 // Update picture position
-export const updatePicturePosition = (pictureId, position) => {
-    const pictures = loadPictures();
-    const pictureIndex = pictures.findIndex(p => p.id === pictureId);
-
-    if (pictureIndex !== -1) {
-        pictures[pictureIndex].position = position;
-        savePictures(pictures);
-    }
-
-    return pictures;
-};
+export async function updatePicturePosition(pictureId, position) {
+    const pictureDoc = doc(db, 'images', pictureId);
+    await updateDoc(pictureDoc, { position });
+}
 
 // Delete a picture
-export const deletePicture = (pictureId) => {
-    const pictures = loadPictures();
-    const filteredPictures = pictures.filter(p => p.id !== pictureId);
-    savePictures(filteredPictures);
-    return filteredPictures;
-};
+export async function deletePicture(pictureId) {
+    await deleteDoc(doc(db, 'images', pictureId));
+}
 
-// Clear all pictures
-export const clearAllPictures = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    return [];
-};
+// Delete all images and clear the collection
+export async function deleteAllImagesAndClear() {
+    const snapshot = await getDocs(imagesCollection);
+    const batch = writeBatch(db);
+    snapshot.docs.forEach(docSnap => {
+        batch.delete(docSnap.ref);
+    });
+    await batch.commit();
+    return { deletedCount: snapshot.docs.length };
+}
 
-// Delete all images from Cloudinary and clear local storage (admin only)
-export const deleteAllImagesAndClear = async (password) => {
-    const pictures = loadPictures();
-    const publicIds = pictures.map(p => p.publicId).filter(Boolean);
-    const result = await deleteAllImages(publicIds, password);
-    clearAllPictures();
-    return result;
-}; 
+// Load all pictures from Firestore
+export async function loadPictures() {
+    const snapshot = await getDocs(imagesCollection);
+    return snapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...docSnap.data()
+    }));
+} 

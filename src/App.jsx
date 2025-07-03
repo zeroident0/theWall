@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import './App.css'
 import ImageUploader from './components/ImageUploader'
 import WallPicture from './components/WallPicture'
-import { loadPictures, addPicture, updatePicturePosition, deletePicture } from './services/storageService'
+import { loadPictures, addPicture, updatePicturePosition, deletePicture, deleteAllImagesAndClear } from './services/storageService'
 import TheWall from './components/theWall'
 import WallMarker from './components/WallMarker'
 import ImageUploadUI from './components/ImageUploadUI';
@@ -23,12 +23,33 @@ function App() {
   const lastMouse = useRef({ x: 0, y: 0 });
   const imageUploaderRef = useRef(null);
   const [pendingImage, setPendingImage] = useState(null);
+  const appRef = useRef(null);
 
   // Load saved pictures on component mount
   useEffect(() => {
+    // Expose admin deleteAllImages command for console use
+    window.deleteAllImages = async (password) => {
+      try {
+        const result = await deleteAllImagesAndClear(password);
+        console.log('All images deleted:', result);
+      } catch (err) {
+        console.error('Failed to delete all images:', err);
+      }
+    };
+    // Usage: window.deleteAllImages('your_admin_password')
     const savedPictures = loadPictures();
     setPictures(savedPictures);
   }, []);
+
+  useEffect(() => {
+    const appElem = appRef.current;
+    if (!appElem) return;
+    const handleWheelWrapper = (e) => handleWheel(e);
+    appElem.addEventListener('wheel', handleWheelWrapper, { passive: false });
+    return () => {
+      appElem.removeEventListener('wheel', handleWheelWrapper);
+    };
+  }, [zoom, pan, isPositionSelectMode]);
 
   const handleWheel = (e) => {
     if (isPositionSelectMode) return; // Disable zooming in position select mode
@@ -148,9 +169,9 @@ function App() {
 
   return (
     <div
+      ref={appRef}
       className="app"
       style={appStyle}
-      onWheel={handleWheel}
       onMouseDown={handleMouseDown}
     >
       {/* Wall Background with Pictures as Children */}

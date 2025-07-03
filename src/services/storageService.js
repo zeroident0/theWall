@@ -1,3 +1,5 @@
+import { deleteAllImages } from './cloudinaryService';
+
 const STORAGE_KEY = 'thewall_pictures';
 
 // Save pictures to localStorage
@@ -55,4 +57,13 @@ export const deletePicture = (pictureId) => {
 export const clearAllPictures = () => {
     localStorage.removeItem(STORAGE_KEY);
     return [];
+};
+
+// Delete all images from Cloudinary and clear local storage (admin only)
+export const deleteAllImagesAndClear = async (password) => {
+    const pictures = loadPictures();
+    const publicIds = pictures.map(p => p.publicId).filter(Boolean);
+    const result = await deleteAllImages(publicIds, password);
+    clearAllPictures();
+    return result;
 }; 

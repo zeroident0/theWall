@@ -243,7 +243,7 @@ function App() {
       )}
       {createPortal(
         <PositionWarning
-          isVisible={isPositionSelectMode}
+          isVisible={isPositionSelectMode && !pendingImage}
           onCancel={() => {
             handlePositionSelectMode(false);
             // Reset the ImageUploader state to show the upload button again
